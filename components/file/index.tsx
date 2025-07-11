@@ -9,6 +9,7 @@ import useSWR, { useSWRConfig } from "swr";
 import { UserFileData } from "@/lib/dto/files";
 import { BucketItem, ClientStorageCredentials } from "@/lib/r2";
 import { cn, fetcher } from "@/lib/utils";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import {
   Select,
   SelectContent,
@@ -31,6 +32,7 @@ import Uploader from "@/components/file/uploader";
 import { Icons } from "@/components/shared/icons";
 
 import { EmptyPlaceholder } from "../shared/empty-placeholder";
+import { PaginationWrapper } from "../shared/pagination";
 import { Button } from "../ui/button";
 import {
   DropdownMenu,
@@ -39,6 +41,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import { Input } from "../ui/input";
 import { CircularStorageIndicator, FileSizeDisplay } from "./storage-size";
 
 export interface FileListProps {
@@ -66,9 +69,10 @@ export interface StorageUserPlan {
 }
 
 export default function UserFileManager({ user, action }: FileListProps) {
+  const { isMobile } = useMediaQuery();
   const t = useTranslations("List");
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(20);
   const [displayType, setDisplayType] = useState<DisplayType>("List");
   const [showMutiCheckBox, setShowMutiCheckBox] = useState(false);
   const [bucketInfo, setBucketInfo] = useState<BucketInfo>({
@@ -84,7 +88,14 @@ export default function UserFileManager({ user, action }: FileListProps) {
   const [selectedFiles, setSelectedFiles] = useState<UserFileData[]>([]);
   const [isDeleting, startDeleteTransition] = useTransition();
 
-  const isAdmin = action.includes("/admin");
+  const [currentSearchType, setCurrentSearchType] = useState("name");
+  const [searchParams, setSearchParams] = useState({
+    name: "",
+    fileSize: "",
+    mimeType: "",
+  });
+
+  // const isAdmin = action.includes("/admin");
 
   const { mutate } = useSWRConfig();
 
@@ -96,7 +107,7 @@ export default function UserFileManager({ user, action }: FileListProps) {
 
   const { data: files, isLoading: isLoadingFiles } = useSWR<FileListData>(
     bucketInfo.bucket
-      ? `${action}/r2/files?bucket=${bucketInfo.bucket}&page=${currentPage}&size=${pageSize}`
+      ? `${action}/r2/files?bucket=${bucketInfo.bucket}&page=${currentPage}&pageSize=${pageSize}&name=${searchParams.name}&fileSize=${searchParams.fileSize}&mimeType=${searchParams.mimeType}`
       : null,
     fetcher,
     {
@@ -123,7 +134,7 @@ export default function UserFileManager({ user, action }: FileListProps) {
 
   const handleRefresh = () => {
     mutate(
-      `${action}/r2/files?bucket=${bucketInfo.bucket}&page=${currentPage}&size=${pageSize}`,
+      `${action}/r2/files?bucket=${bucketInfo.bucket}&page=${currentPage}&pageSize=${pageSize}&name=${searchParams.name}&fileSize=${searchParams.fileSize}&mimeType=${searchParams.mimeType}`,
       undefined,
     );
   };
@@ -174,195 +185,239 @@ export default function UserFileManager({ user, action }: FileListProps) {
   };
 
   return (
-    <div>
-      <Tabs value={displayType}>
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <TabsList className="mr-auto">
-            <TabsTrigger value="List" onClick={() => setDisplayType("List")}>
-              <Icons.list className="size-4" />
-            </TabsTrigger>
-            <TabsTrigger value="Grid" onClick={() => setDisplayType("Grid")}>
-              <Icons.layoutGrid className="size-4" />
-            </TabsTrigger>
-          </TabsList>
-
-          {files && files.totalSize > 0 && plan && (
-            <TooltipProvider>
-              <Tooltip delayDuration={0}>
-                <TooltipTrigger className="flex items-center gap-2">
-                  <CircularStorageIndicator
-                    files={files}
-                    plan={plan}
-                    size={36}
-                  />
-                </TooltipTrigger>
-                <TooltipContent className="w-80">
-                  <FileSizeDisplay files={files} plan={plan} t={t} />
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-
-          {isLoading ? (
-            <Skeleton className="h-9 w-[120px] rounded border-r-0 shadow-inner" />
-          ) : (
-            r2Configs &&
-            r2Configs.buckets &&
-            r2Configs.buckets.length > 0 && (
-              <Select
-                value={bucketInfo.bucket}
-                onValueChange={handleChangeBucket}
-              >
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="Select a bucket" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel className="mx-auto text-center">
-                      {r2Configs?.provider_name}
-                    </SelectLabel>
-                    {r2Configs?.buckets?.map((item) => (
-                      <SelectItem
-                        key={item.bucket}
-                        value={item.bucket}
-                        onClick={() => handleChangeBucket(item.bucket)}
-                      >
-                        {item.bucket}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                  {/* <SelectSeparator /> */}
-                </SelectContent>
-              </Select>
-            )
-          )}
-
-          {!isAdmin && (
-            <Uploader
-              bucketInfo={bucketInfo}
-              action={action}
-              onRefresh={handleRefresh}
-              plan={plan}
-            />
-          )}
-
-          <div className="flex items-center">
-            <Button
-              className={cn(
-                "h-9 rounded-r-none border-r-0",
-                showMutiCheckBox
-                  ? "border-0 bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-                  : "",
-              )}
-              variant="outline"
-              size="icon"
-              onClick={() => setShowMutiCheckBox(!showMutiCheckBox)}
-            >
-              <Icons.listChecks className="size-4" />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                className={cn(
-                  "flex h-9 w-8 items-center justify-center gap-1 rounded-r-md border",
-                  showMutiCheckBox
-                    ? "border-neutral-600 bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-                    : "",
-                )}
-              >
-                <Icons.chevronDown className="size-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleSelectAllFiles}
-                    className="w-full"
-                  >
-                    <span className="text-xs">{t("Select all")}</span>
-                  </Button>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full"
-                    onClick={handleDeleteAllFiles}
-                    disabled={isDeleting || selectedFiles.length === 0}
-                  >
-                    {isDeleting && (
-                      <Icons.spinner className="mr-1 size-4 animate-spin" />
-                    )}
-                    <span className="text-xs">{t("Delete selected")}</span>
-                  </Button>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          <Button
-            className="h-9"
-            size="icon"
-            variant="outline"
-            onClick={() => handleRefresh()}
-            disabled={isLoadingFiles}
+    <Tabs value={displayType}>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-neutral-50 p-2 dark:bg-neutral-900">
+        <TabsList>
+          <TabsTrigger value="List" onClick={() => setDisplayType("List")}>
+            <Icons.list className="size-4" />
+          </TabsTrigger>
+          <TabsTrigger value="Grid" onClick={() => setDisplayType("Grid")}>
+            <Icons.layoutGrid className="size-4" />
+          </TabsTrigger>
+        </TabsList>
+        {/* Search Input */}
+        <div className="flex flex-1 items-center sm:mr-auto">
+          <Select
+            value={currentSearchType}
+            onValueChange={(value) => {
+              setCurrentSearchType(value);
+              setSearchParams({
+                name: "",
+                fileSize: "",
+                mimeType: "",
+              });
+              setCurrentPage(1);
+            }}
           >
-            {isLoadingFiles ? (
-              <Icons.refreshCw className="size-4 animate-spin" />
-            ) : (
-              <Icons.refreshCw className="size-4" />
-            )}
-          </Button>
+            <SelectTrigger className="w-[80px] rounded-r-none">
+              <SelectValue placeholder="Select a type" />
+            </SelectTrigger>
+            <SelectContent>
+              {[
+                { lebal: "Name", value: "name" },
+                { lebal: "Size", value: "fileSize" },
+                { lebal: "Type", value: "mimeType" },
+              ].map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {t(item.lebal)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            className="min-w-28 rounded-l-none border-l-0 sm:w-48 sm:flex-none"
+            placeholder={`Search by ${currentSearchType}...`}
+            value={searchParams[currentSearchType] || ""}
+            onChange={(e) => {
+              setSearchParams({
+                ...searchParams,
+                [currentSearchType]: e.target.value,
+              });
+              setCurrentPage(1);
+            }}
+          />
         </div>
-
-        {isLoading && (
-          <div className="mt-8 flex flex-col items-center gap-3">
-            <div className="flex size-20 animate-pulse items-center justify-center rounded-full bg-muted">
-              <Icons.storage className="size-10" />
-            </div>
-            <div className="flex items-center justify-center gap-2 text-muted-foreground">
-              <Icons.spinner className="mr-1 size-4 animate-spin" />
-              {t("Loading storage buckets")}...
-            </div>
-          </div>
+        {/* Storage */}
+        {files && files.totalSize > 0 && plan && (
+          <TooltipProvider>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger className="flex items-center gap-2">
+                <CircularStorageIndicator files={files} plan={plan} size={36} />
+              </TooltipTrigger>
+              <TooltipContent className="w-80">
+                <FileSizeDisplay files={files} plan={plan} t={t} />
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
-
-        {!isLoading && !r2Configs?.buckets?.length && (
-          <EmptyPlaceholder className="col-span-full mt-8 shadow-none">
-            <EmptyPlaceholder.Icon name="storage" />
-            <EmptyPlaceholder.Title>
-              {t("No buckets found")}
-            </EmptyPlaceholder.Title>
-            <EmptyPlaceholder.Description>
-              {t(
-                "The administrator has not configured the storage bucket, no file can be uploaded",
-              )}
-            </EmptyPlaceholder.Description>
-          </EmptyPlaceholder>
+        {/* Bucket Select */}
+        {isLoading ? (
+          <Skeleton className="h-9 w-[120px] rounded border-r-0 shadow-inner" />
+        ) : (
+          r2Configs &&
+          r2Configs.buckets &&
+          r2Configs.buckets.length > 0 && (
+            <Select
+              value={bucketInfo.bucket}
+              onValueChange={handleChangeBucket}
+            >
+              <SelectTrigger className="flex-1 sm:w-[120px] sm:flex-none">
+                <SelectValue placeholder="Select a bucket" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel className="mx-auto text-center">
+                    {r2Configs?.provider_name}
+                  </SelectLabel>
+                  {r2Configs?.buckets?.map((item) => (
+                    <SelectItem
+                      key={item.bucket}
+                      value={item.bucket}
+                      onClick={() => handleChangeBucket(item.bucket)}
+                    >
+                      {item.bucket}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+                {/* <SelectSeparator /> */}
+              </SelectContent>
+            </Select>
+          )
         )}
-
-        {!isLoading && r2Configs?.buckets && r2Configs.buckets.length > 0 && (
-          <UserFileList
-            user={user}
-            files={files}
-            isLoading={isLoadingFiles}
-            view={displayType}
+        {/* Uploader */}
+        {!isLoading && r2Configs && r2Configs.buckets?.length > 0 && (
+          <Uploader
             bucketInfo={bucketInfo}
-            action={action}
-            showMutiCheckBox={showMutiCheckBox}
-            currentPage={currentPage}
-            pageSize={pageSize}
-            setCurrentPage={setCurrentPage}
-            setPageSize={setPageSize}
-            selectedFiles={selectedFiles}
-            setSelectedFiles={setSelectedFiles}
+            action={"/api/storage"}
             onRefresh={handleRefresh}
-            onSelectAll={handleSelectAllFiles}
-            onDeleteAll={handleDeleteAllFiles}
+            plan={plan}
           />
         )}
-      </Tabs>
-    </div>
+        {/* Muti Checkbox */}
+        <div className="flex items-center">
+          <Button
+            className={cn(
+              "h-9 rounded-r-none border-r-0",
+              showMutiCheckBox
+                ? "border-0 bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                : "",
+            )}
+            variant="outline"
+            size="icon"
+            onClick={() => setShowMutiCheckBox(!showMutiCheckBox)}
+          >
+            <Icons.listChecks className="size-4" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className={cn(
+                "flex h-9 w-8 items-center justify-center gap-1 rounded-r-md border",
+                showMutiCheckBox
+                  ? "border-neutral-600 bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                  : "",
+              )}
+            >
+              <Icons.chevronDown className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSelectAllFiles}
+                  className="w-full"
+                >
+                  <span className="text-xs">{t("Select all")}</span>
+                </Button>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={handleDeleteAllFiles}
+                  disabled={isDeleting || selectedFiles.length === 0}
+                >
+                  {isDeleting && (
+                    <Icons.spinner className="mr-1 size-4 animate-spin" />
+                  )}
+                  <span className="text-xs">{t("Delete selected")}</span>
+                </Button>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        {/* Refresh */}
+        <Button
+          className="h-9"
+          size="icon"
+          variant="outline"
+          onClick={() => handleRefresh()}
+          disabled={isLoadingFiles}
+        >
+          {isLoadingFiles ? (
+            <Icons.refreshCw className="size-4 animate-spin" />
+          ) : (
+            <Icons.refreshCw className="size-4" />
+          )}
+        </Button>
+      </div>
+
+      {isLoading && (
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <div className="flex size-20 animate-pulse items-center justify-center rounded-full bg-muted">
+            <Icons.storage className="size-10" />
+          </div>
+          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+            <Icons.spinner className="mr-1 size-4 animate-spin" />
+            {t("Loading storage buckets")}...
+          </div>
+        </div>
+      )}
+
+      {!isLoading && !r2Configs?.buckets?.length && (
+        <EmptyPlaceholder className="col-span-full mt-8 shadow-none">
+          <EmptyPlaceholder.Icon name="storage" />
+          <EmptyPlaceholder.Title>
+            {t("No buckets found")}
+          </EmptyPlaceholder.Title>
+          <EmptyPlaceholder.Description>
+            {t(
+              "The administrator has not configured the storage bucket, no file can be uploaded",
+            )}
+          </EmptyPlaceholder.Description>
+        </EmptyPlaceholder>
+      )}
+
+      {!isLoading && r2Configs?.buckets && r2Configs.buckets.length > 0 && (
+        <UserFileList
+          user={user}
+          files={files}
+          isLoading={isLoadingFiles}
+          view={displayType}
+          bucketInfo={bucketInfo}
+          action={action}
+          showMutiCheckBox={showMutiCheckBox}
+          selectedFiles={selectedFiles}
+          setSelectedFiles={setSelectedFiles}
+          onRefresh={handleRefresh}
+          onSelectAll={handleSelectAllFiles}
+          onDeleteAll={handleDeleteAllFiles}
+        />
+      )}
+
+      {files && Math.ceil(files.total / pageSize) > 1 && (
+        <PaginationWrapper
+          className="mt-4"
+          layout={isMobile ? "right" : "split"}
+          total={files.total}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          pageSize={pageSize}
+          setPageSize={setPageSize}
+        />
+      )}
+    </Tabs>
   );
 }

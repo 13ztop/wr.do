@@ -64,10 +64,6 @@ interface Props {
   action: string;
   view: DisplayType;
   showMutiCheckBox: boolean;
-  currentPage: number;
-  pageSize: number;
-  setCurrentPage: (page: number) => void;
-  setPageSize: (size: number) => void;
   selectedFiles: UserFileData[];
   setSelectedFiles: (files: UserFileData[]) => void;
   onRefresh: () => void;
@@ -83,17 +79,12 @@ export default function UserFileList({
   action,
   view,
   showMutiCheckBox,
-  currentPage,
-  pageSize,
-  setCurrentPage,
-  setPageSize,
   selectedFiles,
   setSelectedFiles,
   onRefresh,
   onSelectAll,
 }: Props) {
   const t = useTranslations("List");
-  const { isMobile } = useMediaQuery();
   const [isShowForm, setShowForm] = useState(false);
   const [shortTarget, setShortTarget] = useState<UserFileData | null>(null);
   const [shortLinks, setShortLinks] = useState<string[]>([]);
@@ -269,9 +260,9 @@ export default function UserFileList({
 
   const renderListView = () => (
     <div className="overflow-hidden rounded-lg border bg-primary-foreground">
-      <div className="text-mute-foreground grid grid-cols-6 gap-4 bg-neutral-100 px-6 py-3 text-sm font-medium dark:bg-neutral-800 sm:grid-cols-10">
+      <div className="text-mute-foreground grid grid-cols-5 gap-4 bg-neutral-100 px-6 py-3 text-sm font-medium dark:bg-neutral-800 sm:grid-cols-10">
         {showMutiCheckBox && (
-          <div className="col-span-1 flex">
+          <div className="col-end-1">
             <Checkbox
               className="mr-3 size-4 border-neutral-300 bg-neutral-100 data-[state=checked]:border-neutral-900 data-[state=checked]:bg-neutral-600 data-[state=checked]:text-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:data-[state=checked]:border-neutral-300 dark:data-[state=checked]:bg-neutral-300"
               checked={selectedFiles.length === files?.list.length}
@@ -279,9 +270,7 @@ export default function UserFileList({
             />
           </div>
         )}
-        <div className={cn(showMutiCheckBox ? "col-span-2" : "col-span-3")}>
-          {t("Name")}
-        </div>
+        <div className={cn("col-span-3")}>{t("Name")}</div>
         <div className="col-span-2 hidden sm:flex">{t("Type")}</div>
         <div className="col-span-1">{t("Size")}</div>
         <div className="col-span-1 hidden sm:flex">{t("User")}</div>
@@ -302,11 +291,11 @@ export default function UserFileList({
           {files?.list.map((file, index) => (
             <div
               key={file.id}
-              className="text-mute-foreground grid grid-cols-6 gap-4 px-6 py-4 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-600 sm:grid-cols-10"
+              className="text-mute-foreground grid grid-cols-5 gap-4 px-6 py-4 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-600 sm:grid-cols-10"
             >
               {showMutiCheckBox && (
                 <div
-                  className="col-span-1 flex items-center gap-2"
+                  className="col-end-1 flex items-center gap-2"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Checkbox
@@ -318,12 +307,7 @@ export default function UserFileList({
                   />
                 </div>
               )}
-              <div
-                className={cn(
-                  "items-center space-x-3 text-sm",
-                  showMutiCheckBox ? "col-span-2" : "col-span-3",
-                )}
-              >
+              <div className={cn("col-span-3 items-center space-x-3 text-sm")}>
                 <TooltipProvider>
                   <Tooltip delayDuration={0}>
                     <TooltipTrigger
@@ -347,7 +331,7 @@ export default function UserFileList({
                       {file.mimeType.startsWith("image/") &&
                         file.status === 1 && (
                           <img
-                            className="max-h-[70vh] w-72 rounded shadow"
+                            className="mb-2 max-h-[70vh] w-72 rounded shadow"
                             width={300}
                             height={300}
                             src={getFileUrl(file.path)}
@@ -603,16 +587,6 @@ export default function UserFileList({
   return (
     <>
       {view === "List" ? renderListView() : renderGridView()}
-      {files && Math.ceil(files.total / pageSize) > 1 && (
-        <PaginationWrapper
-          layout={isMobile ? "right" : "split"}
-          total={files.total}
-          currentPage={currentPage}
-          setCurrentPage={setCurrentPage}
-          pageSize={pageSize}
-          setPageSize={setPageSize}
-        />
-      )}
 
       <Modal
         className="md:max-w-2xl"
@@ -662,23 +636,23 @@ export default function UserFileList({
 
 function TableColumnSekleton() {
   return (
-    <TableRow className="grid grid-cols-3 items-center sm:grid-cols-12">
-      <TableCell className="col-span-1 hidden sm:flex">
-        <Skeleton className="h-5 w-10" />
-      </TableCell>
-      <TableCell className="col-span-3 sm:col-span-2">
+    <TableRow className="grid grid-cols-5 items-center sm:grid-cols-10">
+      <TableCell className="col-span-3 flex">
         <Skeleton className="h-5 w-20" />
+      </TableCell>
+      <TableCell className="col-span-2 hidden sm:flex">
+        <Skeleton className="h-5 w-16" />
       </TableCell>
       <TableCell className="col-span-1 flex">
         <Skeleton className="h-5 w-16" />
       </TableCell>
-      <TableCell className="col-span-2 hidden sm:flex">
+      <TableCell className="col-span-1 hidden sm:flex">
         <Skeleton className="h-5 w-16" />
       </TableCell>
-      <TableCell className="col-span-2 hidden sm:flex">
+      <TableCell className="col-span-1 hidden sm:flex">
         <Skeleton className="h-5 w-16" />
       </TableCell>
-      <TableCell className="col-span-2 hidden sm:flex">
+      <TableCell className="col-span-1 hidden sm:flex">
         <Skeleton className="h-5 w-16" />
       </TableCell>
       <TableCell className="col-span-1 flex">

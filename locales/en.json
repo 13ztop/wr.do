@@ -215,7 +215,8 @@
     "storageHigh": "Storage space usage is high",
     "storageGood": "Storage space is sufficient",
     "items": "items",
-    "Total": "Total"
+    "Total": "Total",
+    "Configuration Error": "Configuration Error"
   },
   "Components": {
     "Dashboard": "Dashboard",
@@ -372,7 +373,8 @@
     "Do not close the window until the upload is complete": "Do not close the window until the upload is complete",
     "Pending Upload": "Pending Upload",
     "Start Upload": "Start Upload",
-    "Limit": "Limit"
+    "Limit": "Limit",
+    "Files pasted successfully": "Files pasted successfully"
   },
   "Landing": {
     "settings": "Settings",

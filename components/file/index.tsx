@@ -75,7 +75,7 @@ export default function UserFileManager({ user, action }: FileListProps) {
   const [pageSize, setPageSize] = useState(20);
   const [displayType, setDisplayType] = useState<DisplayType>("List");
   const [showMutiCheckBox, setShowMutiCheckBox] = useState(false);
-  const [bucketInfo, setBucketInfo] = useState<BucketInfo>({
+  const [currentBucketInfo, setCurrentBucketInfo] = useState<BucketInfo>({
     bucket: "",
     custom_domain: "",
     prefix: "",
@@ -93,6 +93,7 @@ export default function UserFileManager({ user, action }: FileListProps) {
     name: "",
     fileSize: "",
     mimeType: "",
+    status: "1",
   });
 
   // const isAdmin = action.includes("/admin");
@@ -105,9 +106,13 @@ export default function UserFileManager({ user, action }: FileListProps) {
     { revalidateOnFocus: false },
   );
 
-  const { data: files, isLoading: isLoadingFiles } = useSWR<FileListData>(
-    bucketInfo.bucket
-      ? `${action}/r2/files?bucket=${bucketInfo.bucket}&page=${currentPage}&pageSize=${pageSize}&name=${searchParams.name}&fileSize=${searchParams.fileSize}&mimeType=${searchParams.mimeType}`
+  const {
+    data: files,
+    isLoading: isLoadingFiles,
+    error,
+  } = useSWR<FileListData>(
+    currentBucketInfo.bucket
+      ? `${action}/r2/files?bucket=${currentBucketInfo.bucket}&page=${currentPage}&pageSize=${pageSize}&name=${searchParams.name}&fileSize=${searchParams.fileSize}&mimeType=${searchParams.mimeType}&status=${searchParams.status}`
       : null,
     fetcher,
     {
@@ -122,8 +127,13 @@ export default function UserFileManager({ user, action }: FileListProps) {
   );
 
   useEffect(() => {
-    if (r2Configs && r2Configs.buckets && r2Configs.buckets.length > 0) {
-      setBucketInfo({
+    if (
+      r2Configs &&
+      r2Configs.buckets &&
+      r2Configs.buckets.length > 0 &&
+      r2Configs.buckets[0].bucket
+    ) {
+      setCurrentBucketInfo({
         ...r2Configs.buckets[0],
         platform: r2Configs.platform,
         channel: r2Configs.channel,
@@ -133,8 +143,9 @@ export default function UserFileManager({ user, action }: FileListProps) {
   }, [r2Configs]);
 
   const handleRefresh = () => {
+    setSelectedFiles([]);
     mutate(
-      `${action}/r2/files?bucket=${bucketInfo.bucket}&page=${currentPage}&pageSize=${pageSize}&name=${searchParams.name}&fileSize=${searchParams.fileSize}&mimeType=${searchParams.mimeType}`,
+      `${action}/r2/files?bucket=${currentBucketInfo.bucket}&page=${currentPage}&pageSize=${pageSize}&name=${searchParams.name}&fileSize=${searchParams.fileSize}&mimeType=${searchParams.mimeType}&status=${searchParams.status}`,
       undefined,
     );
   };
@@ -143,8 +154,8 @@ export default function UserFileManager({ user, action }: FileListProps) {
     const newBucketInfo = r2Configs?.buckets?.find(
       (item) => item.bucket === bucket,
     );
-    setBucketInfo({
-      ...bucketInfo,
+    setCurrentBucketInfo({
+      ...currentBucketInfo,
       ...newBucketInfo,
     });
   };
@@ -167,7 +178,7 @@ export default function UserFileManager({ user, action }: FileListProps) {
             body: JSON.stringify({
               keys: selectedFiles.map((file) => file.path),
               ids: selectedFiles.map((file) => file.id),
-              bucket: bucketInfo.bucket,
+              bucket: currentBucketInfo.bucket,
             }),
           }),
           {
@@ -205,11 +216,12 @@ export default function UserFileManager({ user, action }: FileListProps) {
                 name: "",
                 fileSize: "",
                 mimeType: "",
+                status: "1",
               });
               setCurrentPage(1);
             }}
           >
-            <SelectTrigger className="w-[80px] rounded-r-none">
+            <SelectTrigger className="w-[80px] rounded-r-none text-sm">
               <SelectValue placeholder="Select a type" />
             </SelectTrigger>
             <SelectContent>
@@ -217,6 +229,7 @@ export default function UserFileManager({ user, action }: FileListProps) {
                 { lebal: "Name", value: "name" },
                 { lebal: "Size", value: "fileSize" },
                 { lebal: "Type", value: "mimeType" },
+                { lebal: "Status", value: "status" },
               ].map((item) => (
                 <SelectItem key={item.value} value={item.value}>
                   {t(item.lebal)}
@@ -225,7 +238,7 @@ export default function UserFileManager({ user, action }: FileListProps) {
             </SelectContent>
           </Select>
           <Input
-            className="min-w-28 rounded-l-none border-l-0 sm:w-48 sm:flex-none"
+            className="min-w-28 rounded-l-none border-l-0 placeholder:text-xs sm:w-48 sm:flex-none"
             placeholder={`Search by ${currentSearchType}...`}
             value={searchParams[currentSearchType] || ""}
             onChange={(e) => {
@@ -256,9 +269,10 @@ export default function UserFileManager({ user, action }: FileListProps) {
         ) : (
           r2Configs &&
           r2Configs.buckets &&
-          r2Configs.buckets.length > 0 && (
+          r2Configs.buckets.length > 0 &&
+          r2Configs.buckets[0].bucket && (
             <Select
-              value={bucketInfo.bucket}
+              value={currentBucketInfo.bucket}
               onValueChange={handleChangeBucket}
             >
               <SelectTrigger className="flex-1 sm:w-[120px] sm:flex-none">
@@ -285,15 +299,19 @@ export default function UserFileManager({ user, action }: FileListProps) {
           )
         )}
         {/* Uploader */}
-        {!isLoading && r2Configs && r2Configs.buckets?.length > 0 && (
-          <FileUploader
-            bucketInfo={bucketInfo}
-            action="/api/storage"
-            plan={plan}
-            userId={user.id}
-            onRefresh={handleRefresh}
-          />
-        )}
+        {!isLoading &&
+          r2Configs &&
+          r2Configs.buckets &&
+          r2Configs.buckets.length > 0 &&
+          r2Configs.buckets[0].bucket && (
+            <FileUploader
+              bucketInfo={currentBucketInfo}
+              action="/api/storage"
+              plan={plan}
+              userId={user.id}
+              onRefresh={handleRefresh}
+            />
+          )}
         {/* Muti Checkbox */}
         <div className="flex items-center">
           <Button
@@ -377,36 +395,55 @@ export default function UserFileManager({ user, action }: FileListProps) {
         </div>
       )}
 
-      {!isLoading && !r2Configs?.buckets?.length && (
+      {!isLoading && error && (
         <EmptyPlaceholder className="col-span-full mt-8 shadow-none">
-          <EmptyPlaceholder.Icon name="storage" />
+          <EmptyPlaceholder.Icon name="close" />
           <EmptyPlaceholder.Title>
-            {t("No buckets found")}
+            {t("Configuration Error")}
           </EmptyPlaceholder.Title>
           <EmptyPlaceholder.Description>
-            {t(
-              "The administrator has not configured the storage bucket, no file can be uploaded",
-            )}
+            {error.message}, Please check your bucket configuration and try
+            again
           </EmptyPlaceholder.Description>
         </EmptyPlaceholder>
       )}
 
-      {!isLoading && r2Configs?.buckets && r2Configs.buckets.length > 0 && (
-        <UserFileList
-          user={user}
-          files={files}
-          isLoading={isLoadingFiles}
-          view={displayType}
-          bucketInfo={bucketInfo}
-          action={action}
-          showMutiCheckBox={showMutiCheckBox}
-          selectedFiles={selectedFiles}
-          setSelectedFiles={setSelectedFiles}
-          onRefresh={handleRefresh}
-          onSelectAll={handleSelectAllFiles}
-          onDeleteAll={handleDeleteAllFiles}
-        />
-      )}
+      {!isLoading &&
+        !error &&
+        (!r2Configs?.buckets?.length || !r2Configs?.buckets?.[0].bucket) && (
+          <EmptyPlaceholder className="col-span-full mt-8 shadow-none">
+            <EmptyPlaceholder.Icon name="storage" />
+            <EmptyPlaceholder.Title>
+              {t("No buckets found")}
+            </EmptyPlaceholder.Title>
+            <EmptyPlaceholder.Description>
+              {t(
+                "The administrator has not configured the storage bucket, no file can be uploaded",
+              )}
+            </EmptyPlaceholder.Description>
+          </EmptyPlaceholder>
+        )}
+
+      {!isLoading &&
+        !error &&
+        r2Configs?.buckets &&
+        r2Configs.buckets.length > 0 &&
+        r2Configs?.buckets[0].bucket && (
+          <UserFileList
+            user={user}
+            files={files}
+            isLoading={isLoadingFiles}
+            view={displayType}
+            bucketInfo={currentBucketInfo}
+            action={action}
+            showMutiCheckBox={showMutiCheckBox}
+            selectedFiles={selectedFiles}
+            setSelectedFiles={setSelectedFiles}
+            onRefresh={handleRefresh}
+            onSelectAll={handleSelectAllFiles}
+            onDeleteAll={handleDeleteAllFiles}
+          />
+        )}
 
       {files && Math.ceil(files.total / pageSize) > 1 && (
         <PaginationWrapper

@@ -102,19 +102,21 @@ export default function UserFileList({
     }
   };
 
-  const handleDownload = async (file: UserFileData) => {
-    downloadFileFromUrl(getFileUrl(file.path), file.name);
-  };
-
-  const handlePreviewRawFile = async (key: string) => {
+  const handleDownload = async (key: string, type: "download" | "raw") => {
     try {
-      const response = await fetch(`${action}/r2/files`, {
+      const response = await fetch(`${action}/s3/files`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, bucket: bucketInfo.bucket }),
+        body: JSON.stringify({
+          key,
+          bucket: bucketInfo.bucket,
+          provider: bucketInfo.provider_name,
+        }),
       });
       const { signedUrl } = await response.json();
-      window.open(signedUrl, "_blank");
+      type === "download"
+        ? downloadFileFromUrl(signedUrl, key)
+        : window.open(signedUrl, "_blank");
     } catch (error) {
       console.error("Error downloading file:", error);
       alert("Error downloading file");
@@ -126,13 +128,14 @@ export default function UserFileList({
 
     try {
       toast.promise(
-        fetch(`${action}/r2/files`, {
+        fetch(`${action}/s3/files`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             keys: [file.path],
             ids: [file.id],
             bucket: bucketInfo.bucket,
+            provider: bucketInfo.provider_name,
           }),
         }),
         {
@@ -151,7 +154,7 @@ export default function UserFileList({
   const handleGenerateShortLink = async (urlId: string) => {
     if (!shortTarget) return;
     try {
-      const response = await fetch(`${action}/r2/files/short`, {
+      const response = await fetch(`${action}/s3/files/short`, {
         method: "PUT",
         body: JSON.stringify({ urlId, fileId: shortTarget?.id }),
       });
@@ -159,7 +162,6 @@ export default function UserFileList({
         toast.error("Error generating short link");
       } else {
         onRefresh();
-        // handleGetFileShortLinkByIds();
       }
     } catch (error) {
       console.error("Error generating short link:", error);
@@ -172,7 +174,7 @@ export default function UserFileList({
     try {
       const ids = files.list.map((f) => f.shortUrlId || "");
       if (!ids?.some((id) => id !== "")) return;
-      const response = await fetch(`${action}/r2/files/short`, {
+      const response = await fetch(`${action}/s3/files/short`, {
         method: "POST",
         body: JSON.stringify({ ids }),
       });
@@ -251,11 +253,11 @@ export default function UserFileList({
       <div className="flex items-center gap-2">
         <Icons.type className="size-3 flex-shrink-0" />
         <p className="line-clamp-1 truncate rounded-md bg-neutral-100 p-1.5 text-xs hover:text-blue-500 dark:bg-neutral-800">
-          {`[${file.name}](${getFileUrl(file.path)})`}
+          {`![${file.name}](${getFileUrl(file.path)})`}
         </p>
         <CopyButton
           className="size-6"
-          value={`[${file.name}](${getFileUrl(file.path)})`}
+          value={`![${file.name}](${getFileUrl(file.path)})`}
         />
       </div>
     </>
@@ -325,14 +327,14 @@ export default function UserFileList({
                             width={300}
                             height={300}
                             src={getFileUrl(file.path)}
-                            alt={`${file.path}`}
+                            alt={`${file.name}`}
                           />
                         )}
                       {renderFileLinks(file, index)}
                     </div>
                   }
                 >
-                  {truncateMiddle(file.path)}
+                  {truncateMiddle(file.path, 36)}
                   {file.status === 1 && (
                     <CopyButton
                       className="size-6"
@@ -417,7 +419,7 @@ export default function UserFileList({
                         className="flex w-full items-center gap-2"
                         size="sm"
                         variant="ghost"
-                        onClick={() => handlePreviewRawFile(file.path)}
+                        onClick={() => handleDownload(file.path, "raw")}
                       >
                         <Icons.eye className="size-4" />
                         {t("Raw Data")}
@@ -429,7 +431,7 @@ export default function UserFileList({
                         className="flex w-full items-center gap-2"
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDownload(file)}
+                        onClick={() => handleDownload(file.path, "download")}
                       >
                         <Icons.download className="size-4" />
                         {t("Download")}
@@ -459,9 +461,9 @@ export default function UserFileList({
 
   const renderGridView = () => (
     <div
-      className="grid justify-items-center gap-4"
+      className="grid justify-center justify-items-center gap-4 sm:justify-start"
       style={{
-        gridTemplateColumns: "repeat(auto-fill, minmax(10px, 100px))",
+        gridTemplateColumns: "repeat(auto-fill, minmax(80px, 100px))",
       }}
     >
       {isLoading &&
@@ -472,13 +474,13 @@ export default function UserFileList({
         <div
           key={file.id}
           className={cn(
-            "group relative flex cursor-pointer items-end rounded-md transition-all hover:bg-blue-50",
+            "group relative flex w-full cursor-pointer items-end rounded-md transition-all hover:bg-blue-50",
             selectedFiles.find((f) => f.id === file.id) !== undefined &&
               "bg-blue-50",
           )}
           onClick={() => handleSelectFile(file)}
         >
-          <div className="flex flex-col items-center justify-center space-y-1 py-1">
+          <div className="flex w-full flex-col items-center justify-center space-y-1 py-1">
             {showMutiCheckBox && (
               <Checkbox
                 checked={
@@ -491,7 +493,7 @@ export default function UserFileList({
             {React.cloneElement(getFileIcon(file, bucketInfo), { size: 40 })}
             <div className="w-full text-center">
               <ClickableTooltip
-                className="mx-auto line-clamp-2 max-w-[60px] cursor-pointer break-all px-2 pb-1 text-left text-xs font-medium text-muted-foreground group-hover:text-blue-500 sm:max-w-[100px]"
+                className="mx-auto line-clamp-2 break-all px-2 pb-1 text-left text-xs font-medium text-muted-foreground group-hover:text-blue-500 sm:max-w-[100px]"
                 content={
                   <div className="max-w-[300px] space-y-1 p-3 text-start">
                     {file.mimeType.startsWith("image/") &&
@@ -501,7 +503,7 @@ export default function UserFileList({
                           width={300}
                           height={300}
                           src={getFileUrl(file.path)}
-                          alt={`${file.path}`}
+                          alt={`${file.name}`}
                         />
                       )}
                     <p className="mt-1 text-sm font-semibold text-muted-foreground">
@@ -527,7 +529,7 @@ export default function UserFileList({
                         className="flex h-7 w-full items-center gap-2 text-xs"
                         size="sm"
                         variant="outline"
-                        onClick={() => handlePreviewRawFile(file.path)}
+                        onClick={() => handleDownload(file.path, "raw")}
                         disabled={file.status !== 1}
                       >
                         <Icons.eye className="size-4" />
@@ -546,7 +548,7 @@ export default function UserFileList({
                         <Icons.qrcode className="size-4" />
                       </Button>
                       <Button
-                        onClick={() => handlePreviewRawFile(file.path)}
+                        onClick={() => handleDownload(file.path, "download")}
                         className="h-7 px-1.5"
                         title="下载"
                         size="sm"
